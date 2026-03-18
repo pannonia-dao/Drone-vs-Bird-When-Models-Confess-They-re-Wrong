@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FALCON-1 | Belief Revision Benchmark</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    background:#0a0a0f;
+    color:#00ff88;
+    font-family: 'Courier New', monospace;
+    height:100%;
+    overflow:hidden;
+  }
+  body {
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ── HEADER ── */
+  #header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 16px;
+    background:linear-gradient(180deg, #0d1a12 0%, #0a0a0f 100%);
+    border-bottom:1px solid #1a3328;
+    flex-shrink:0;
+  }
+  #header h1 {
+    font-size:clamp(12px, 3vw, 16px);
+    color:#00ff88;
+    letter-spacing:0.12em;
+    font-weight:bold;
+  }
+  #header h1 span { color:#005533; font-weight:normal; }
+  .badge {
+    background:#001a0d;
+    border:1px solid #003322;
+    border-radius:4px;
+    padding:4px 8px;
+    font-size:clamp(8px, 2vw, 10px);
+    color:#00cc66;
+    letter-spacing:0.06em;
+  }
+
+  /* ── STATUS BAR ── */
+  #statusbar {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:6px 16px;
+    background:#000;
+    border-bottom:1px solid #1a3328;
+    font-size:clamp(9px, 2.2vw, 11px);
+    letter-spacing:0.06em;
+    flex-wrap:wrap;
+    gap:6px;
+    flex-shrink:0;
+  }
+  .s-group { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .s-label { color:#005533; }
+  .s-val { color:#00ff88; font-weight:bold; }
+  .s-warn { color:#ff6600; animation: blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .audio-ind {
+    display:flex;
+    align-items:center;
+    gap:4px;
+    padding:3px 8px;
+    border-radius:3px;
+    font-size:clamp(8px, 2vw, 9px);
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .audio-ind.on { background:#002211; border:1px solid #00ff88; color:#00ff88; }
+  .audio-ind.off { background:#1a0d0d; border:1px solid #442222; color:#ff4444; }
+
+  /* ── MAIN CONTAINER ── */
+  #main {
+    flex:1;
+    display:flex;
+    min-height:0;
+    overflow:hidden;
+  }
+
+  /* ── RADAR SECTION ── */
+  #radar-section {
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:12px;
+    position:relative;
+    background:radial-gradient(ellipse at center, #0d1510 0%, #0a0a0f 70%);
+    min-width:0;
+  }
+  canvas#radar { 
+    display:block; 
+    touch-action:none;
+    max-width:100%;
+    max-height:100%;
+  }
+
+  /* ── SIDE PANEL ── */
+  #side-panel {
+    width:320px;
+    background:#000;
+    border-left:1px solid #1a3328;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    flex-shrink:0;
+  }
+
+  .panel-section {
+    padding:12px 14px;
+    border-bottom:1px solid #1a3328;
+    flex-shrink:0;
+  }
+  .panel-title {
+    font-size:clamp(8px, 2vw, 10px);
+    color:#005533;
+    letter-spacing:0.1em;
+    margin-bottom:8px;
+    text-transform:uppercase;
+  }
+
+  /* ── BELIEF PANEL ── */
+  #belief-panel {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .belief-card {
+    background:#001a0d;
+    border:1px solid #003322;
+    border-radius:5px;
+    padding:8px;
+    text-align:center;
+  }
+  .belief-card.active { border-color:#00ff88; background:#002211; }
+  .belief-card.revised { border-color:#ffaa00; }
+  .belief-label {
+    font-size:clamp(7px, 1.8vw, 9px);
+    color:#005533;
+    letter-spacing:0.08em;
+    margin-bottom:4px;
+  }
+  .belief-value {
+    font-size:clamp(14px, 3.5vw, 18px);
+    font-weight:bold;
+    color:#00ff88;
+  }
+  .belief-value.wrong { color:#ff4444; }
+  .belief-value.uncertain { color:#ffaa00; }
+  .belief-conf {
+    font-size:clamp(7px, 1.8vw, 9px);
+    color:#005533;
+    margin-top:3px;
+  }
+
+  /* ── FALSIFICATION PANEL ── */
+  #falsification-panel {
+    background:#0d0a00;
+    border:1px solid #332200;
+    border-radius:5px;
+    padding:10px;
+  }
+  .falsification-cue {
+    font-size:clamp(11px, 2.8vw, 13px);
+    color:#ffaa00;
+    font-weight:bold;
+    margin-bottom:6px;
+  }
+  .falsification-time {
+    font-size:clamp(9px, 2.2vw, 11px);
+    color:#00aaff;
+  }
+  .falsification-desc {
+    font-size:clamp(8px, 2vw, 10px);
+    color:#666;
+    margin-top:6px;
+    line-height:1.4;
+  }
+
+  /* ── TARGET LIST ── */
+  #target-list {
+    flex:1;
+    overflow-y:auto;
+    padding:6px 14px;
+    scrollbar-width:thin;
+    scrollbar-color:#003322 #000;
+    min-height:0;
+  }
+  #target-list::-webkit-scrollbar { width:5px; }
+  #target-list::-webkit-scrollbar-track { background:#000; }
+  #target-list::-webkit-scrollbar-thumb { background:#003322; border-radius:3px; }
+
+  .tgt-row {
+    display:grid;
+    grid-template-columns: 48px 1fr 55px 45px;
+    align-items:center;
+    gap:6px;
+    padding:6px 8px;
+    margin-bottom:3px;
+    background:#001a0d;
+    border:1px solid #003322;
+    border-radius:4px;
+    font-size:clamp(8px, 2vw, 10px);
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .tgt-row:hover { border-color:#005533; }
+  .tgt-row.selected { border-color:#00ff88; background:#002211; }
+  .tgt-row.drone { border-color:#ff4444; background:#1a0d0d; }
+  .tgt-row.drone.revealed { border-color:#ffaa00; background:#1a1500; }
+  
+  .tgt-id { color:#00ff88; font-weight:bold; letter-spacing:0.04em; }
+  .tgt-type { color:#005533; }
+  .tgt-speed { color:#00aaff; }
+  .tgt-hover { 
+    padding:2px 4px; 
+    border-radius:3px; 
+    font-size:clamp(7px, 1.8vw, 9px);
+    text-align:center;
+  }
+  .tgt-hover.low { background:#001a0d; color:#005533; }
+  .tgt-hover.high { background:#330011; color:#ff4444; animation: blink 0.8s infinite; }
+
+  /* ── SCORE PANEL ── */
+  #score-section {
+    padding:10px 14px;
+    border-bottom:1px solid #1a3328;
+    flex-shrink:0;
+  }
+  #score-panel {
+    background:#0d1a12;
+    border:1px solid #003322;
+    border-radius:5px;
+    padding:10px;
+  }
+  .score-row {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:3px 0;
+    font-size:clamp(8px, 2vw, 10px);
+  }
+  .score-row .label { color:#005533; }
+  .score-row .value { color:#00ff88; font-weight:bold; }
+  .score-row.total {
+    border-top:1px solid #003322;
+    margin-top:5px;
+    padding-top:6px;
+    font-size:clamp(10px, 2.5vw, 12px);
+  }
+  .score-row.total .value { color:#00ffaa; font-size:clamp(12px, 3vw, 16px); }
+
+  /* ── CONTROLS ── */
+  #controls {
+    padding:10px 14px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+    flex-shrink:0;
+  }
+  .btn {
+    flex:1;
+    min-width:60px;
+    padding:8px 4px;
+    background:#001a0d;
+    border:1px solid #003322;
+    border-radius:4px;
+    color:#00ff88;
+    font-family:'Courier New',monospace;
+    font-size:clamp(8px, 2vw, 10px);
+    letter-spacing:0.05em;
+    cursor:pointer;
+    text-align:center;
+    text-transform:uppercase;
+    transition:all 0.15s;
+  }
+  .btn:hover { border-color:#005533; }
+  .btn:active, .btn.active { background:#003322; border-color:#00ff88; }
+  .btn.danger { border-color:#660022; color:#ff4444; background:#1a0d0d; }
+  .btn.danger:hover { border-color:#880033; background:#220011; }
+  .btn.warn { border-color:#442200; color:#ffaa00; }
+
+  /* ── TIMELINE ── */
+  #timeline-section {
+    padding:10px 16px;
+    background:#000;
+    border-top:1px solid #1a3328;
+    flex-shrink:0;
+  }
+  #timeline-wrap {
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  #timeline {
+    flex:1;
+    height:6px;
+    background:#001a0d;
+    border-radius:3px;
+    position:relative;
+    cursor:pointer;
+  }
+  #timeline-progress {
+    height:100%;
+    background:linear-gradient(90deg, #003322, #00ff88);
+    border-radius:3px;
+    width:0%;
+    transition:width 0.1s linear;
+  }
+  #timeline-marker {
+    position:absolute;
+    top:-6px;
+    width:2px;
+    height:18px;
+    background:#ffaa00;
+    transform:translateX(-50%);
+    display:none;
+  }
+  #timeline-marker::after {
+    content:'⚡';
+    position:absolute;
+    top:-14px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:10px;
+    color:#ffaa00;
+  }
+  .time-label {
+    font-size:clamp(8px, 2vw, 10px);
+    color:#005533;
+    min-width:40px;
+  }
+
+  /* ── LEGEND ── */
+  #legend {
+    display:flex;
+    gap:12px;
+    padding:8px 16px;
+    background:#000;
+    border-top:1px solid #1a3328;
+    font-size:clamp(7px, 1.8vw, 9px);
+    flex-shrink:0;
+    flex-wrap:wrap;
+  }
+  .legend-item { display:flex; align-items:center; gap:5px; }
+  .legend-dot { width:7px; height:7px; border-radius:50%; }
+  .legend-dot.bird { background:#00ff88; }
+  .legend-dot.drone { background:#ff4444; }
+  .legend-dot.hover { background:#ffaa00; }
+  .legend-label { color:#005533; }
+
+  /* ── ALERT OVERLAY ── */
+  #alert-box {
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.96);
+    border:2px solid #ffaa00;
+    border-radius:8px;
+    padding:20px 32px;
+    text-align:center;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.3s;
+    z-index:100;
+    max-width:90vw;
+  }
+  #alert-box.show { opacity:1; pointer-events:auto; }
+  #alert-box h3 {
+    color:#ffaa00;
+    font-size:clamp(11px, 3vw, 14px);
+    letter-spacing:0.12em;
+    margin-bottom:8px;
+  }
+  #alert-box p {
+    color:#00ff88;
+    font-size:clamp(10px, 2.5vw, 12px);
+    line-height:1.5;
+  }
+
+  /* ── START OVERLAY ── */
+  #start-overlay {
+    position:fixed;
+    top:0; left:0; right:0; bottom:0;
+    background:rgba(0,0,0,0.92);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    z-index:200;
+    cursor:pointer;
+  }
+  #start-overlay.hidden { display:none; }
+  #start-overlay h2 {
+    color:#00ff88;
+    font-size:clamp(18px, 5vw, 28px);
+    letter-spacing:0.2em;
+    margin-bottom:16px;
+  }
+  #start-overlay p {
+    color:#005533;
+    font-size:clamp(10px, 2.5vw, 13px);
+    letter-spacing:0.1em;
+  }
+  .pulse-ring {
+    width:clamp(80px, 20vw, 120px);
+    height:clamp(80px, 20vw, 120px);
+    border:2px solid #00ff88;
+    border-radius:50%;
+    margin-bottom:24px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .pulse-ring::after {
+    content:'▶';
+    font-size:clamp(28px, 7vw, 40px);
+    color:#00ff88;
+  }
+  @keyframes pulse {
+    0%,100% { transform:scale(1); opacity:1; }
+    50% { transform:scale(1.08); opacity:0.7; }
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     RESPONSIVE LAYOUTS
+     ══════════════════════════════════════════════════════════════ */
+
+  /* TABLET PORTRAIT */
+  @media (max-width: 1024px) {
+    #side-panel { width:280px; }
+  }
+
+  /* MOBILE / SMALL TABLET */
+  @media (max-width: 768px) {
+    #main {
+      flex-direction:column;
+    }
+    #radar-section {
+      flex:none;
+      height:50vh;
+      min-height:280px;
+      padding:8px;
+    }
+    #side-panel {
+      width:100%;
+      flex:1;
+      border-left:none;
+      border-top:1px solid #1a3328;
+      min-height:0;
+    }
+    #target-list {
+      max-height:120px;
+    }
+    .panel-section { padding:10px 12px; }
+    #controls { padding:8px 12px; }
+    #score-section { padding:8px 12px; }
+    .tgt-row {
+      grid-template-columns: 42px 1fr 50px 40px;
+      padding:5px 6px;
+    }
+  }
+
+  /* SMALL MOBILE */
+  @media (max-width: 480px) {
+    #header { padding:8px 12px; }
+    #statusbar { padding:5px 12px; }
+    .s-group { gap:8px; }
+    #radar-section {
+      height:45vh;
+      min-height:240px;
+    }
+    #target-list {
+      max-height:100px;
+      padding:4px 10px;
+    }
+    .tgt-row {
+      grid-template-columns: 40px 1fr 45px 38px;
+      gap:4px;
+      padding:4px 5px;
+    }
+    #belief-panel { gap:6px; }
+    .belief-card { padding:6px; }
+    #score-panel { padding:8px; }
+    .score-row { padding:2px 0; }
+    #timeline-section { padding:8px 12px; }
+    #legend { padding:6px 12px; gap:10px; }
+  }
+
+  /* LANDSCAPE MOBILE */
+  @media (max-height: 500px) and (orientation: landscape) {
+    #main {
+      flex-direction:row;
+    }
+    #radar-section {
+      flex:1;
+      height:auto;
+      min-height:0;
+    }
+    #side-panel {
+      width:45%;
+      max-width:320px;
+      border-top:none;
+      border-left:1px solid #1a3328;
+    }
+    #target-list {
+      max-height:none;
+    }
+    .panel-section { padding:6px 10px; }
+    .panel-title { margin-bottom:4px; }
+    #belief-panel { gap:4px; }
+    .belief-card { padding:4px; }
+    .belief-label { margin-bottom:2px; }
+    #score-section { padding:6px 10px; }
+    #score-panel { padding:6px; }
+    #controls { padding:6px 10px; gap:4px; }
+    .btn { padding:6px 3px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- START OVERLAY -->
+<div id="start-overlay" onclick="startWithAudio()">
+  <div class="pulse-ring"></div>
+  <h2>FALCON-1</h2>
+  <p>TAP TO START SIMULATION</p>
+</div>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>FALCON-1 <span>| AGI Benchmark</span></h1>
+  <div class="badge">COGNITIVE TEST</div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusbar">
+  <div class="s-group">
+    <div><span class="s-label">OBJ </span><span class="s-val">10</span></div>
+    <div><span class="s-label">TIME </span><span class="s-val" id="time-val">t=0</span></div>
+    <div><span class="s-label">MODE </span><span class="s-val" id="mode-val">STANDBY</span></div>
+    <div id="hover-alert" class="s-warn" style="display:none">⚠ HOVER</div>
+  </div>
+  <div class="s-group">
+    <div id="audio-toggle" class="audio-ind off" onclick="toggleAudio(event)">
+      <span>🔊</span><span id="audio-label">OFF</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- RADAR -->
+  <div id="radar-section">
+    <canvas id="radar"></canvas>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div id="side-panel">
+    <!-- Belief Revision -->
+    <div class="panel-section">
+      <div class="panel-title">Model Belief State</div>
+      <div id="belief-panel">
+        <div class="belief-card" id="belief-stage1">
+          <div class="belief-label">INITIAL</div>
+          <div class="belief-value uncertain" id="stage1-pred">OBJ-?</div>
+          <div class="belief-conf" id="stage1-conf">--</div>
+        </div>
+        <div class="belief-card" id="belief-stage2">
+          <div class="belief-label">REVISED</div>
+          <div class="belief-value" id="stage2-pred">--</div>
+          <div class="belief-conf" id="stage2-conf">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Falsification -->
+    <div class="panel-section">
+      <div class="panel-title">Falsification Evidence</div>
+      <div id="falsification-panel">
+        <div class="falsification-cue" id="falsi-cue">Awaiting evidence...</div>
+        <div class="falsification-time" id="falsi-time"></div>
+        <div class="falsification-desc" id="falsi-desc">Model must identify the cue that rules out bird hypotheses.</div>
+      </div>
+    </div>
+
+    <!-- Target List -->
+    <div class="panel-section" style="padding-bottom:4px;">
+      <div class="panel-title">Tracked Objects</div>
+    </div>
+    <div id="target-list"></div>
+
+    <!-- Score -->
+    <div id="score-section">
+      <div class="panel-title" style="margin-bottom:6px;">Score</div>
+      <div id="score-panel">
+        <div class="score-row"><span class="label">Identification</span><span class="value" id="sc-ident">--</span></div>
+        <div class="score-row"><span class="label">Cue</span><span class="value" id="sc-cue">--</span></div>
+        <div class="score-row"><span class="label">Timing</span><span class="value" id="sc-time">--</span></div>
+        <div class="score-row"><span class="label">Revision</span><span class="value" id="sc-rev">--</span></div>
+        <div class="score-row"><span class="label">Explanation</span><span class="value" id="sc-exp">--</span></div>
+        <div class="score-row total"><span class="label">TOTAL</span><span class="value" id="sc-total">--</span></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+      <button class="btn danger" id="btn-stop" onclick="stopSimulation()" style="display:none">⬛ STOP</button>
+      <button class="btn" id="btn-reset" onclick="resetSimulation()">Reset</button>
+      <button class="btn warn" id="btn-reveal" onclick="revealDrone()">Reveal</button>
+      <button class="btn" id="btn-gt" onclick="toggleGroundTruth()">GT</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div id="timeline-section">
+  <div id="timeline-wrap">
+    <span class="time-label">t=0</span>
+    <div id="timeline" onclick="seekTimeline(event)">
+      <div id="timeline-progress"></div>
+      <div id="timeline-marker"></div>
+    </div>
+    <span class="time-label" id="time-end">t=100</span>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div id="legend">
+  <div class="legend-item"><div class="legend-dot bird"></div><span class="legend-label">Bird</span></div>
+  <div class="legend-item"><div class="legend-dot drone"></div><span class="legend-label">Drone</span></div>
+  <div class="legend-item"><div class="legend-dot hover"></div><span class="legend-label">Hover</span></div>
+</div>
+
+<!-- ALERT -->
+<div id="alert-box">
+  <h3>⚠ FALSIFICATION DETECTED</h3>
+  <p id="alert-msg"></p>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// FALCON-1 BENCHMARK — FINAL VERSION
+// Hyper-realistic Military-grade Audio + Full Responsiveness
+// ══════════════════════════════════════════════════════════════
+
+const NUM_OBJECTS = 10;
+const TIMESTEPS = 100;
+
+let objects = [];
+let droneId = null;
+let currentTime = 0;
+let isRunning = false;
+let isPaused = false;
+let showGroundTruth = false;
+let falsificationTime = null;
+let hoverDetected = false;
+let selectedObject = null;
+let sweepAngle = 0;
+
+let modelBelief = {
+  stage1: { prediction: null, confidence: 0 },
+  stage2: { prediction: null, confidence: 0, cue: null, time: null, revised: false }
+};
+
+// ══════════════════════════════════════════════════════════════
+// HYPER-REALISTIC AUDIO ENGINE
+// ══════════════════════════════════════════════════════════════
+let audioCtx = null;
+let audioEnabled = false;
+let masterGain = null;
+let compressor = null;
+let sonarTimers = new Map();
+let droneAudioNodes = [];
+let ambientNoise = null;
+let sweepOsc = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  
+  // Master chain: Compressor → Gain → Destination
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.knee.value = 30;
+  compressor.ratio.value = 12;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.25;
+  
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.8;
+  
+  compressor.connect(masterGain);
+  masterGain.connect(audioCtx.destination);
+  
+  audioEnabled = true;
+  updateAudioUI();
+  startAmbientNoise();
+}
+
+function toggleAudio(e) {
+  if (e) e.stopPropagation();
+  if (!audioCtx) {
+    initAudio();
+  } else {
+    audioEnabled = !audioEnabled;
+    if (!audioEnabled) {
+      stopAllDroneAudio();
+      stopAmbientNoise();
+    } else {
+      startAmbientNoise();
+    }
+  }
+  updateAudioUI();
+}
+
+function updateAudioUI() {
+  const toggle = document.getElementById('audio-toggle');
+  const label = document.getElementById('audio-label');
+  toggle.classList.toggle('on', audioEnabled);
+  toggle.classList.toggle('off', !audioEnabled);
+  label.textContent = audioEnabled ? 'ON' : 'OFF';
+}
+
+// ── AMBIENT ROOM TONE (subtle hiss of electronics) ──
+function startAmbientNoise() {
+  if (!audioCtx || !audioEnabled || ambientNoise) return;
+  
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  
+  // Pink noise approximation
+  let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.015;
+    b6 = white * 0.115926;
+  }
+  
+  ambientNoise = audioCtx.createBufferSource();
+  ambientNoise.buffer = buffer;
+  ambientNoise.loop = true;
+  
+  const lpf = audioCtx.createBiquadFilter();
+  lpf.type = 'lowpass';
+  lpf.frequency.value = 2000;
+  
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.03;
+  
+  ambientNoise.connect(lpf);
+  lpf.connect(gain);
+  gain.connect(compressor);
+  ambientNoise.start();
+  ambientNoise._gain = gain;
+}
+
+function stopAmbientNoise() {
+  if (ambientNoise) {
+    ambientNoise._gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+    setTimeout(() => {
+      if (ambientNoise) { ambientNoise.stop(); ambientNoise = null; }
+    }, 600);
+  }
+}
+
+// ── REALISTIC SONAR PING (submarine-style) ──
+function playSonarPing(obj) {
+  if (!audioCtx || !audioEnabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  
+  const now = audioCtx.currentTime;
+  const dist = Math.sqrt(obj.currentPos.x**2 + obj.currentPos.y**2);
+  const angle = Math.atan2(obj.currentPos.x, obj.currentPos.y);
+  const isHover = obj.hoveringNow;
+  
+  // Distance-based parameters
+  const baseFreq = isHover ? 1800 : 1200;
+  const freq = baseFreq - dist * 400;
+  const vol = Math.max(0.02, 0.12 - dist * 0.08);
+  const decay = 0.15 + dist * 0.2;
+  
+  // Stereo positioning
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = Math.sin(angle) * 0.7;
+  
+  // Main ping oscillator
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, now);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.85, now + decay);
+  
+  // Amplitude envelope
+  const env = audioCtx.createGain();
+  env.gain.setValueAtTime(0, now);
+  env.gain.linearRampToValueAtTime(vol, now + 0.002);
+  env.gain.setValueAtTime(vol, now + 0.01);
+  env.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+  
+  // Subtle reverb simulation via delay
+  const delay = audioCtx.createDelay();
+  delay.delayTime.value = 0.03 + dist * 0.02;
+  const delayGain = audioCtx.createGain();
+  delayGain.gain.value = 0.15;
+  
+  // High-pass to remove mud
+  const hpf = audioCtx.createBiquadFilter();
+  hpf.type = 'highpass';
+  hpf.frequency.value = 400;
+  
+  // Connect
+  osc.connect(env);
+  env.connect(hpf);
+  hpf.connect(panner);
+  panner.connect(compressor);
+  
+  // Delay tail
+  hpf.connect(delay);
+  delay.connect(delayGain);
+  delayGain.connect(panner);
+  
+  osc.start(now);
+  osc.stop(now + decay + 0.1);
+  
+  // Secondary harmonic for hovering targets (warning tone)
+  if (isHover) {
+    const osc2 = audioCtx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(freq * 1.5, now + 0.05);
+    
+    const env2 = audioCtx.createGain();
+    env2.gain.setValueAtTime(0, now + 0.05);
+    env2.gain.linearRampToValueAtTime(vol * 0.4, now + 0.055);
+    env2.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+    
+    osc2.connect(env2);
+    env2.connect(panner);
+    osc2.start(now + 0.05);
+    osc2.stop(now + 0.2);
+  }
+}
+
+function getPingInterval(dist) {
+  return 200 + Math.pow(Math.min(dist, 1), 0.6) * 1800;
+}
+
+function tickSonar() {
+  if (!audioEnabled || !isRunning) return;
+  const now = Date.now();
+  
+  objects.forEach(obj => {
+    const dist = Math.sqrt(obj.currentPos.x**2 + obj.currentPos.y**2);
+    if (!sonarTimers.has(obj.id)) {
+      playSonarPing(obj);
+      sonarTimers.set(obj.id, { next: now + getPingInterval(dist) });
+    } else {
+      const t = sonarTimers.get(obj.id);
+      if (now >= t.next) {
+        playSonarPing(obj);
+        t.next = now + getPingInterval(dist);
+      }
+    }
+  });
+}
+
+// ── REALISTIC QUADCOPTER DRONE AUDIO ──
+function startDroneAudio(obj) {
+  if (!audioCtx || !audioEnabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  
+  const nodes = { id: obj.id };
+  const dist = Math.sqrt(obj.currentPos.x**2 + obj.currentPos.y**2);
+  const baseVol = Math.max(0.02, 0.15 - dist * 0.1);
+  
+  // Stereo positioning
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = Math.sin(Math.atan2(obj.currentPos.x, obj.currentPos.y)) * 0.6;
+  nodes.panner = panner;
+  
+  // Master gain for this drone
+  const droneGain = audioCtx.createGain();
+  droneGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  droneGain.gain.linearRampToValueAtTime(baseVol, audioCtx.currentTime + 0.3);
+  nodes.gain = droneGain;
+  
+  // Low-pass filter (distance simulation)
+  const lpf = audioCtx.createBiquadFilter();
+  lpf.type = 'lowpass';
+  lpf.frequency.value = 3000 - dist * 1500;
+  nodes.lpf = lpf;
+  
+  // 4 motors at slightly different frequencies (quadcopter)
+  const motorFreqs = [82, 85, 88, 91]; // ~80-90 Hz base
+  const motors = [];
+  
+  motorFreqs.forEach((freq, i) => {
+    // Fundamental
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    
+    // Motor speed variation (each motor slightly different)
+    const lfo = audioCtx.createOscillator();
+    lfo.frequency.value = 3 + i * 0.7;
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 4;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    
+    // Harmonic (blade pass frequency ~4x motor)
+    const harm = audioCtx.createOscillator();
+    harm.type = 'triangle';
+    harm.frequency.value = freq * 4;
+    
+    // Gain for this motor
+    const mGain = audioCtx.createGain();
+    mGain.gain.value = 0.15;
+    
+    const hGain = audioCtx.createGain();
+    hGain.gain.value = 0.05;
+    
+    osc.connect(mGain);
+    harm.connect(hGain);
+    mGain.connect(lpf);
+    hGain.connect(lpf);
+    
+    osc.start();
+    harm.start();
+    lfo.start();
+    
+    motors.push({ osc, harm, lfo, mGain, hGain });
+  });
+  nodes.motors = motors;
+  
+  // Wind noise from rotors
+  const noiseSize = audioCtx.sampleRate;
+  const noiseBuf = audioCtx.createBuffer(1, noiseSize, audioCtx.sampleRate);
+  const noiseData = noiseBuf.getChannelData(0);
+  for (let i = 0; i < noiseSize; i++) {
+    noiseData[i] = Math.random() * 2 - 1;
+  }
+  
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = noiseBuf;
+  noise.loop = true;
+  
+  const noiseBpf = audioCtx.createBiquadFilter();
+  noiseBpf.type = 'bandpass';
+  noiseBpf.frequency.value = 400;
+  noiseBpf.Q.value = 1;
+  
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.value = 0.04;
+  
+  noise.connect(noiseBpf);
+  noiseBpf.connect(noiseGain);
+  noiseGain.connect(lpf);
+  noise.start();
+  nodes.noise = noise;
+  nodes.noiseGain = noiseGain;
+  
+  // Connect chain
+  lpf.connect(droneGain);
+  droneGain.connect(panner);
+  panner.connect(compressor);
+  
+  droneAudioNodes.push(nodes);
+}
+
+function updateDroneAudio(obj) {
+  const nodes = droneAudioNodes.find(n => n.id === obj.id);
+  if (!nodes) return;
+  
+  const dist = Math.sqrt(obj.currentPos.x**2 + obj.currentPos.y**2);
+  const angle = Math.atan2(obj.currentPos.x, obj.currentPos.y);
+  
+  nodes.panner.pan.linearRampToValueAtTime(
+    Math.sin(angle) * 0.6, 
+    audioCtx.currentTime + 0.1
+  );
+  
+  nodes.lpf.frequency.linearRampToValueAtTime(
+    3000 - dist * 1500,
+    audioCtx.currentTime + 0.1
+  );
+  
+  const vol = Math.max(0.02, 0.15 - dist * 0.1);
+  nodes.gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.1);
+}
+
+function stopDroneAudio(objId) {
+  const idx = droneAudioNodes.findIndex(n => n.id === objId);
+  if (idx === -1) return;
+  
+  const nodes = droneAudioNodes[idx];
+  nodes.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+  
+  setTimeout(() => {
+    nodes.motors.forEach(m => {
+      m.osc.stop();
+      m.harm.stop();
+      m.lfo.stop();
+    });
+    nodes.noise.stop();
+    droneAudioNodes.splice(idx, 1);
+  }, 400);
+}
+
+function stopAllDroneAudio() {
+  droneAudioNodes.forEach(nodes => {
+    nodes.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+    setTimeout(() => {
+      nodes.motors.forEach(m => {
+        try { m.osc.stop(); m.harm.stop(); m.lfo.stop(); } catch(e) {}
+      });
+      try { nodes.noise.stop(); } catch(e) {}
+    }, 300);
+  });
+  droneAudioNodes = [];
+}
+
+// ── ALERT SOUND (military warning) ──
+function playAlertSound() {
+  if (!audioCtx || !audioEnabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  
+  const now = audioCtx.currentTime;
+  
+  // Two-tone alert (like military radar warning)
+  for (let i = 0; i < 3; i++) {
+    const startTime = now + i * 0.4;
+    
+    // High tone
+    const osc1 = audioCtx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = 880;
+    
+    const env1 = audioCtx.createGain();
+    env1.gain.setValueAtTime(0, startTime);
+    env1.gain.linearRampToValueAtTime(0.15, startTime + 0.01);
+    env1.gain.setValueAtTime(0.15, startTime + 0.1);
+    env1.gain.linearRampToValueAtTime(0, startTime + 0.15);
+    
+    osc1.connect(env1);
+    env1.connect(compressor);
+    osc1.start(startTime);
+    osc1.stop(startTime + 0.2);
+    
+    // Low tone
+    const osc2 = audioCtx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = 660;
+    
+    const env2 = audioCtx.createGain();
+    env2.gain.setValueAtTime(0, startTime + 0.15);
+    env2.gain.linearRampToValueAtTime(0.12, startTime + 0.16);
+    env2.gain.setValueAtTime(0.12, startTime + 0.25);
+    env2.gain.linearRampToValueAtTime(0, startTime + 0.35);
+    
+    osc2.connect(env2);
+    env2.connect(compressor);
+    osc2.start(startTime + 0.15);
+    osc2.stop(startTime + 0.4);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// CANVAS & SIMULATION
+// ══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('radar');
+const ctx = canvas.getContext('2d');
+
+function init() {
+  resize();
+  generateScenario();
+  renderTargetList();
+  draw();
+  window.addEventListener('resize', () => { resize(); draw(); });
+}
+
+function resize() {
+  const section = document.getElementById('radar-section');
+  const maxSize = Math.min(section.clientWidth, section.clientHeight) - 24;
+  const size = Math.max(200, maxSize);
+  canvas.width = size;
+  canvas.height = size;
+}
+
+function startWithAudio() {
+  document.getElementById('start-overlay').classList.add('hidden');
+  initAudio();
+  runSimulation();
+}
+
+function generateScenario() {
+  objects = [];
+  droneId = Math.floor(Math.random() * NUM_OBJECTS);
+  const hoverStart = 25 + Math.floor(Math.random() * 25);
+  const hoverDuration = 5 + Math.floor(Math.random() * 10);
+  
+  for (let i = 0; i < NUM_OBJECTS; i++) {
+    const isDrone = (i === droneId);
+    const trajectory = isDrone 
+      ? generateDroneTrajectory(hoverStart, hoverDuration)
+      : generateBirdTrajectory();
+    
+    objects.push({
+      id: i,
+      name: `OBJ-${i}`,
+      isDrone,
+      trajectory,
+      hoverStart: isDrone ? hoverStart : null,
+      hoverEnd: isDrone ? hoverStart + hoverDuration : null,
+      currentPos: { x: trajectory[0].x, y: trajectory[0].y },
+      history: [],
+      hoveringNow: false,
+      droneAudioActive: false
+    });
+  }
+  
+  falsificationTime = objects[droneId].hoverStart;
+  document.getElementById('timeline-marker').style.left = `${(falsificationTime / TIMESTEPS) * 100}%`;
+  simulateModelBelief();
+}
+
+function generateBirdTrajectory() {
+  const trajectory = [];
+  let x = (Math.random() - 0.5) * 1.6;
+  let y = (Math.random() - 0.5) * 1.6;
+  let vx = (Math.random() - 0.5) * 0.08;
+  let vy = (Math.random() - 0.5) * 0.08;
+  const freq = 1.0 + Math.random() * 1.0;
+  
+  for (let t = 0; t < TIMESTEPS; t++) {
+    vx += (Math.random() - 0.5) * 0.01 + Math.sin(t * freq * 0.3) * 0.005;
+    vy += (Math.random() - 0.5) * 0.01 + Math.cos(t * freq * 0.3) * 0.003;
+    
+    const speed = Math.sqrt(vx*vx + vy*vy);
+    if (speed < 0.03) {
+      const scale = 0.03 / Math.max(speed, 0.001);
+      vx *= scale; vy *= scale;
+    }
+    
+    vx = Math.max(-0.1, Math.min(0.1, vx));
+    vy = Math.max(-0.1, Math.min(0.1, vy));
+    x += vx; y += vy;
+    
+    if (Math.abs(x) > 0.9) { vx *= -0.8; x = Math.sign(x) * 0.9; }
+    if (Math.abs(y) > 0.9) { vy *= -0.8; y = Math.sign(y) * 0.9; }
+    
+    trajectory.push({ t, x, y, speed: Math.sqrt(vx*vx+vy*vy)*100, isHovering: false });
+  }
+  return trajectory;
+}
+
+function generateDroneTrajectory(hoverStart, hoverDuration) {
+  const trajectory = [];
+  let x = (Math.random() - 0.5) * 1.6;
+  let y = (Math.random() - 0.5) * 1.6;
+  let vx = (Math.random() - 0.5) * 0.06;
+  let vy = (Math.random() - 0.5) * 0.06;
+  const hoverX = x + vx * hoverStart * 0.5;
+  const hoverY = y + vy * hoverStart * 0.5;
+  
+  for (let t = 0; t < TIMESTEPS; t++) {
+    const inHover = (t >= hoverStart && t < hoverStart + hoverDuration);
+    
+    if (inHover) {
+      x = hoverX + (Math.random() - 0.5) * 0.002;
+      y = hoverY + (Math.random() - 0.5) * 0.002;
+      vx = vy = 0.001;
+    } else if (t === hoverStart + hoverDuration) {
+      vx = (Math.random() - 0.5) * 0.1;
+      vy = (Math.random() - 0.5) * 0.1;
+      x += vx; y += vy;
+    } else {
+      vx += (Math.random() - 0.5) * 0.008;
+      vy += (Math.random() - 0.5) * 0.008;
+      vx = Math.max(-0.08, Math.min(0.08, vx));
+      vy = Math.max(-0.08, Math.min(0.08, vy));
+      x += vx; y += vy;
+    }
+    
+    if (Math.abs(x) > 0.9) { vx *= -0.8; x = Math.sign(x) * 0.9; }
+    if (Math.abs(y) > 0.9) { vy *= -0.8; y = Math.sign(y) * 0.9; }
+    
+    trajectory.push({ t, x, y, speed: Math.sqrt(vx*vx+vy*vy)*100, isHovering: inHover });
+  }
+  return trajectory;
+}
+
+function simulateModelBelief() {
+  let wrong = Math.floor(Math.random() * NUM_OBJECTS);
+  while (wrong === droneId) wrong = Math.floor(Math.random() * NUM_OBJECTS);
+  
+  modelBelief.stage1 = { prediction: wrong, confidence: 0.35 + Math.random() * 0.25 };
+  modelBelief.stage2 = {
+    prediction: droneId,
+    confidence: 0.85 + Math.random() * 0.1,
+    cue: 'SUSTAINED HOVER',
+    time: falsificationTime,
+    revised: true
+  };
+}
+
+function runSimulation() {
+  if (isRunning) return;
+  isRunning = true;
+  isPaused = false;
+  document.getElementById('mode-val').textContent = 'TRACKING';
+  tick();
+}
+
+function stopSimulation() {
+  isRunning = false;
+  isPaused = true;
+  stopAllDroneAudio();
+  document.getElementById('mode-val').textContent = 'STOPPED';
+  document.getElementById('btn-stop').style.display = 'none';
+}
+
+function resetSimulation() {
+  isRunning = false;
+  isPaused = false;
+  currentTime = 0;
+  hoverDetected = false;
+  showGroundTruth = false;
+  sonarTimers.clear();
+  stopAllDroneAudio();
+  
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('btn-gt').classList.remove('active');
+  document.getElementById('btn-reveal').classList.remove('active');
+  document.getElementById('mode-val').textContent = 'STANDBY';
+  document.getElementById('hover-alert').style.display = 'none';
+  document.getElementById('timeline-marker').style.display = 'none';
+  document.getElementById('timeline-progress').style.width = '0%';
+  
+  updateBeliefPanel(false);
+  updateScorePanel(false);
+  generateScenario();
+  objects.forEach(o => { o.history = []; o.droneAudioActive = false; });
+  renderTargetList();
+  draw();
+  
+  document.getElementById('start-overlay').classList.remove('hidden');
+}
+
+function tick() {
+  if (!isRunning || isPaused) return;
+  
+  currentTime++;
+  if (currentTime >= TIMESTEPS) {
+    isRunning = false;
+    stopAllDroneAudio();
+    document.getElementById('mode-val').textContent = 'COMPLETE';
+    document.getElementById('btn-stop').style.display = 'none';
+    showFinalScore();
+    return;
+  }
+  
+  updatePositions();
+  updateUI();
+  tickSonar();
+  draw();
+  
+  requestAnimationFrame(() => setTimeout(tick, 60));
+}
+
+function updatePositions() {
+  objects.forEach(obj => {
+    const frame = obj.trajectory[currentTime];
+    obj.currentPos = { x: frame.x, y: frame.y };
+    obj.history.push({ x: frame.x, y: frame.y });
+    if (obj.history.length > 20) obj.history.shift();
+    
+    const wasHovering = obj.hoveringNow;
+    obj.hoveringNow = frame.isHovering;
+    
+    // Drone audio management
+    if (obj.isDrone && audioEnabled) {
+      if (obj.hoveringNow && !obj.droneAudioActive) {
+        startDroneAudio(obj);
+        obj.droneAudioActive = true;
+      } else if (obj.hoveringNow && obj.droneAudioActive) {
+        updateDroneAudio(obj);
+      } else if (!obj.hoveringNow && obj.droneAudioActive) {
+        stopDroneAudio(obj.id);
+        obj.droneAudioActive = false;
+      }
+    }
+  });
+  
+  if (!hoverDetected && currentTime >= falsificationTime) {
+    hoverDetected = true;
+    document.getElementById('hover-alert').style.display = 'block';
+    document.getElementById('timeline-marker').style.display = 'block';
+    document.getElementById('btn-stop').style.display = 'flex';
+    showAlert();
+    playAlertSound();
+    updateBeliefPanel(true);
+  }
+}
+
+function updateUI() {
+  document.getElementById('time-val').textContent = `t=${currentTime}`;
+  document.getElementById('timeline-progress').style.width = `${(currentTime/TIMESTEPS)*100}%`;
+  renderTargetList();
+}
+
+function showAlert() {
+  const box = document.getElementById('alert-box');
+  document.getElementById('alert-msg').innerHTML = 
+    `<b>OBJ-${droneId}</b> sustained hover at <b>t=${falsificationTime}</b><br>Physically impossible for birds.`;
+  box.classList.add('show');
+  setTimeout(() => box.classList.remove('show'), 3500);
+}
+
+function updateBeliefPanel(after) {
+  if (!after) {
+    document.getElementById('stage1-pred').textContent = 'OBJ-?';
+    document.getElementById('stage1-pred').className = 'belief-value uncertain';
+    document.getElementById('stage1-conf').textContent = '--';
+    document.getElementById('stage2-pred').textContent = '--';
+    document.getElementById('stage2-conf').textContent = '--';
+    document.getElementById('belief-stage1').classList.remove('active');
+    document.getElementById('belief-stage2').classList.remove('revised');
+    document.getElementById('falsi-cue').textContent = 'Awaiting evidence...';
+    document.getElementById('falsi-time').textContent = '';
+    return;
+  }
+  
+  const s1 = modelBelief.stage1, s2 = modelBelief.stage2;
+  document.getElementById('stage1-pred').textContent = `OBJ-${s1.prediction}`;
+  document.getElementById('stage1-pred').className = 'belief-value ' + (s1.prediction === droneId ? '' : 'wrong');
+  document.getElementById('stage1-conf').textContent = `${(s1.confidence*100).toFixed(0)}%`;
+  document.getElementById('belief-stage1').classList.add('active');
+  
+  setTimeout(() => {
+    document.getElementById('stage2-pred').textContent = `OBJ-${s2.prediction}`;
+    document.getElementById('stage2-pred').className = 'belief-value';
+    document.getElementById('stage2-conf').textContent = `${(s2.confidence*100).toFixed(0)}%`;
+    document.getElementById('belief-stage2').classList.add('revised');
+    document.getElementById('falsi-cue').textContent = `⚡ ${s2.cue}`;
+    document.getElementById('falsi-time').textContent = `First observed: t=${s2.time}`;
+    document.getElementById('falsi-desc').textContent = 
+      `Bird hypothesis falsified. OBJ-${droneId} near-zero velocity for ${objects[droneId].hoverEnd - objects[droneId].hoverStart} timesteps.`;
+  }, 800);
+}
+
+function updateScorePanel(show) {
+  if (!show) {
+    ['sc-ident','sc-cue','sc-time','sc-rev','sc-exp','sc-total'].forEach(id => {
+      document.getElementById(id).textContent = '--';
+    });
+  }
+}
+
+function showFinalScore() {
+  const s2 = modelBelief.stage2;
+  const ident = s2.prediction === droneId ? 1.0 : 0.0;
+  const cue = s2.cue === 'SUSTAINED HOVER' ? 1.0 : 0.0;
+  const time = Math.max(0, 1 - Math.abs(s2.time - falsificationTime)/10);
+  const rev = s2.revised ? 1.0 : 0.0;
+  const exp = 0.85;
+  const total = 0.35*ident + 0.25*cue + 0.20*time + 0.10*rev + 0.10*exp;
+  
+  document.getElementById('sc-ident').textContent = ident.toFixed(2);
+  document.getElementById('sc-cue').textContent = cue.toFixed(2);
+  document.getElementById('sc-time').textContent = time.toFixed(2);
+  document.getElementById('sc-rev').textContent = rev.toFixed(2);
+  document.getElementById('sc-exp').textContent = exp.toFixed(2);
+  document.getElementById('sc-total').textContent = total.toFixed(3);
+  document.getElementById('sc-total').style.color = total > 0.9 ? '#00ff88' : total > 0.7 ? '#ffaa00' : '#ff4444';
+}
+
+function revealDrone() {
+  showGroundTruth = true;
+  document.getElementById('btn-reveal').classList.add('active');
+  renderTargetList();
+  draw();
+}
+
+function toggleGroundTruth() {
+  showGroundTruth = !showGroundTruth;
+  document.getElementById('btn-gt').classList.toggle('active', showGroundTruth);
+  renderTargetList();
+  draw();
+}
+
+function seekTimeline(e) {
+  const rect = e.target.getBoundingClientRect();
+  currentTime = Math.floor(((e.clientX - rect.left) / rect.width) * TIMESTEPS);
+  updatePositions();
+  updateUI();
+  if (currentTime >= falsificationTime && !hoverDetected) {
+    hoverDetected = true;
+    document.getElementById('hover-alert').style.display = 'block';
+    document.getElementById('timeline-marker').style.display = 'block';
+    document.getElementById('btn-stop').style.display = 'flex';
+    updateBeliefPanel(true);
+  }
+  draw();
+}
+
+function renderTargetList() {
+  const list = document.getElementById('target-list');
+  list.innerHTML = '';
+  
+  objects.forEach(obj => {
+    const frame = obj.trajectory[currentTime] || obj.trajectory[0];
+    const showDrone = showGroundTruth && obj.isDrone;
+    
+    const row = document.createElement('div');
+    row.className = 'tgt-row' + 
+      (selectedObject === obj.id ? ' selected' : '') + 
+      (showDrone ? ' drone revealed' : '') +
+      (obj.isDrone && hoverDetected && !showGroundTruth ? ' drone' : '');
+    
+    row.innerHTML = `
+      <div class="tgt-id">${obj.name}</div>
+      <div class="tgt-type">${showDrone ? 'DRONE' : 'UNK'}</div>
+      <div class="tgt-speed">${frame.speed.toFixed(1)} m/s</div>
+      <div class="tgt-hover ${obj.hoveringNow ? 'high' : 'low'}">${obj.hoveringNow ? 'HVR' : 'MOV'}</div>
+    `;
+    row.onclick = () => { selectedObject = selectedObject === obj.id ? null : obj.id; renderTargetList(); draw(); };
+    list.appendChild(row);
+  });
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const CX = W/2, CY = H/2;
+  const R = Math.min(W,H)/2 - 12;
+  
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0,0,W,H);
+  
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(CX,CY,R,0,Math.PI*2);
+  ctx.clip();
+  
+  const bg = ctx.createRadialGradient(CX,CY,0,CX,CY,R);
+  bg.addColorStop(0, '#0d1510');
+  bg.addColorStop(1, '#050808');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
+  
+  [0.25,0.5,0.75,1.0].forEach((f,i) => {
+    ctx.beginPath();
+    ctx.arc(CX,CY,f*R,0,Math.PI*2);
+    ctx.strokeStyle = i===3 ? '#1a3328' : '#0d1a14';
+    ctx.lineWidth = i===3 ? 1.5 : 0.5;
+    ctx.stroke();
+  });
+  
+  ctx.strokeStyle = '#0d1a14';
+  ctx.lineWidth = 0.5;
+  ctx.setLineDash([4,8]);
+  ctx.beginPath(); ctx.moveTo(CX,CY-R); ctx.lineTo(CX,CY+R); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CX-R,CY); ctx.lineTo(CX+R,CY); ctx.stroke();
+  ctx.setLineDash([]);
+  
+  ctx.fillStyle = '#1a3328';
+  ctx.font = `bold ${Math.max(9, R*0.04)}px Courier New`;
+  ctx.textAlign = 'center';
+  ctx.fillText('N', CX, CY-R+14);
+  ctx.fillText('S', CX, CY+R-6);
+  ctx.fillText('E', CX+R-10, CY+4);
+  ctx.fillText('W', CX-R+10, CY+4);
+  ctx.textAlign = 'left';
+  
+  sweepAngle += 0.025;
+  if (sweepAngle > Math.PI*2) sweepAngle -= Math.PI*2;
+  
+  ctx.beginPath();
+  ctx.moveTo(CX,CY);
+  ctx.lineTo(CX + Math.sin(sweepAngle)*R, CY - Math.cos(sweepAngle)*R);
+  ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.moveTo(CX,CY);
+  ctx.arc(CX,CY,R, sweepAngle-Math.PI/2-0.12, sweepAngle-Math.PI/2);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,255,136,0.06)';
+  ctx.fill();
+  
+  objects.forEach(obj => {
+    const px = CX + obj.currentPos.x * R;
+    const py = CY - obj.currentPos.y * R;
+    const showDrone = showGroundTruth && obj.isDrone;
+    
+    let color = '#00ff88';
+    if (showDrone) color = '#ff4444';
+    else if (obj.hoveringNow) color = '#ffaa00';
+    
+    if (obj.history.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(CX + obj.history[0].x*R, CY - obj.history[0].y*R);
+      obj.history.forEach(h => ctx.lineTo(CX + h.x*R, CY - h.y*R));
+      ctx.strokeStyle = color + '40';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    
+    if (selectedObject === obj.id) {
+      ctx.beginPath();
+      ctx.arc(px,py,10,0,Math.PI*2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3,3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    
+    if (obj.hoveringNow) {
+      ctx.beginPath();
+      ctx.arc(px,py,14,0,Math.PI*2);
+      ctx.fillStyle = 'rgba(255,170,0,0.12)';
+      ctx.fill();
+    }
+    
+    ctx.beginPath();
+    ctx.arc(px,py,showDrone?5:3.5,0,Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    
+    ctx.fillStyle = color + 'bb';
+    ctx.font = `${Math.max(8, R*0.035)}px Courier New`;
+    ctx.fillText(obj.id, px+7, py-2);
+  });
+  
+  ctx.restore();
+  
+  ctx.beginPath();
+  ctx.arc(CX,CY,R,0,Math.PI*2);
+  ctx.strokeStyle = '#1a3328';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.arc(CX,CY,2.5,0,Math.PI*2);
+  ctx.fillStyle = '#00ff88';
+  ctx.fill();
+}
+
+init();
+setInterval(draw, 50);
+</script>
+</body>
+</html>
